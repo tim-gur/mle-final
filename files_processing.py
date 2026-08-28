@@ -25,6 +25,12 @@ events = events.drop(columns=['timestamp']).rename(columns={'itemid': 'item_id',
 
 events.to_parquet('events.parquet', index=False)
 
+#category_tree
+category_tree = pd.read_csv('category_tree.csv')
+category_tree = category_tree.dropna()
+category_tree['parentid'] = category_tree['parentid'].astype('int32')
+category_tree.to_csv('category_tree.csv')
+
 #top100
 events_addtocart = events[events['event'] == 'addtocart']
 top100 = events_addtocart.groupby('item_id').size().reset_index(name='count').sort_values(['count'], ascending=False)[:100]
