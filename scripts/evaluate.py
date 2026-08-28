@@ -87,14 +87,15 @@ def evaluate():
         return precision, recall
 
     # топ популярных
-    top_k_pop_items = events_train.groupby('item_id').size().reset_index(name='count').sort_values(['count'], ascending=False)[:10]
+    top_k_pop_items = events_train[events_train['event'] == 'addtocart'].groupby('item_id').size().reset_index(name='count').sort_values(['count'], ascending=False)[:10]
 
     users_train = events_train["user_id"].drop_duplicates()
     users_test = events_test["user_id"].drop_duplicates()
 
     cold_users = set(users_test) - set(users_train)
 
-    cold_users_events_with_recs = events_test[events_test["user_id"].isin(cold_users)].copy()
+    events_test_addtocart = events_test[events_test['event'] == 'addtocart']
+    cold_users_events_with_recs = events_test_addtocart[events_test["user_id"].isin(cold_users)].copy()
     cold_users_events_with_recs["target"] = cold_users_events_with_recs["item_id"].isin(top_k_pop_items["item_id"]).astype(int)
 
     precision = cold_users_events_with_recs.groupby("user_id")["target"].sum() / 100
@@ -103,17 +104,17 @@ def evaluate():
     recall_top = cold_users_events_with_recs.groupby("user_id")["target"].mean().mean()
 
     cold_user_rankings = {user_id: top_k_pop_items['item_id'].tolist() for user_id in cold_users}
-    cold_user_relevant = (events_test[events_test['user_id'].isin(cold_users)]
-                            .groupby('user_id')['item_id']
-                            .apply(set)
-                            .to_dict())
+    cold_user_relevant = (events_test_addtocart[events_test_addtocart['user_id'].isin(cold_users)]
+                        .groupby('user_id')['item_id']
+                        .apply(set)
+                        .to_dict())
 
     ndcg_pop = mean_ndcg_at_k(cold_user_rankings, cold_user_relevant, k=10)
 
     # als metrics
     events_recs_for_binary_metrics, recs_for_common_users, events_for_common_users = process_events_recs_for_binary_metrics(
     events_train,
-        events_test, 
+        events_test[events_test['event'] == 'addtocart'], 
         als_recommendations, 
         top_k=10)
 
@@ -138,7 +139,7 @@ def evaluate():
 
     cb_events_recs_for_binary_metrics_5, recs_for_common_users, events_for_common_users = process_events_recs_for_binary_metrics(
         events_inference,
-        events_test,
+        events_test[events_test['event'] == 'addtocart'],
         final_recommendations.rename(columns={"cb_score": "score"}), 
         top_k=10)
 
@@ -154,6 +155,28 @@ def evaluate():
 
     ndcg_cb = mean_ndcg_at_k(user_rankings, user_relevant, k=10)
 
+    # novelty
+    # разметим каждую рекомендацию признаком played
+    addtocart_train = events_train[events_train['event'] == 'addtocart'][['user_id', 'item_id']].drop_duplicates()
+    addtocart_train["played"] = True
+    final_recommendations = final_recommendations.merge(addtocart_train, on=["user_id", "item_id"], how="left")
+    final_recommendations["played"] = final_recommendations["played"].fillna(False).astype("bool")
+
+    # проставим ранги
+    final_recommendations = final_recommendations.sort_values(by='cb_score', ascending=False)
+    final_recommendations["rank"] = final_recommendations.groupby("user_id").cumcount() + 1
+
+    # посчитаем novelty по пользователям
+    novelty_5_cb = (1-final_recommendations.query("rank <= 5").groupby("user_id")["played"].mean())
+
+    # coverage
+    items = pd.read_parquet('item_categories.parquet')
+
+    n_init = items['item_id'].nunique()
+    n_als = final_recommendations['item_id'].nunique()
+
+    cov_items_cb = n_als / n_init
+
     # логирование
     os.makedirs('metrics', exist_ok=True)
 
@@ -163,9 +186,12 @@ def evaluate():
             'top10_NDCG': ndcg_pop,
             'als_precision': precision_als,
             'als_recall': recall_als,
+            'als_ndcg': ndcg_als,
             'cb_precision': cb_precision_10,
             'cb_recall': cb_recall_10,
-            'cb_ndcg': ndcg_cb
+            'cb_ndcg': ndcg_cb,
+            'cb_novelty': novelty_5_cb.mean(),
+            'cb_coverage': cov_items_cb
         }
     with open('metrics/metrics.json', 'w') as fd:
         json.dump(metrics, fd)
@@ -195,9 +221,13 @@ def evaluate():
     cb_model = joblib.load('models/cb_model.pkl')
     params = cb_model.get_params()
 
-    with mlflow.start_run(run_name='cb_model_log', experiment_id=experiment_id) as run:
+    importances = cb_model.get_feature_importance(prettified=True)
+    importances.to_csv("feature_importance.csv", index=False)
+
+    with mlflow.start_run(run_name='cb_model_ver_5_fixed_metrics', experiment_id=experiment_id) as run:
         mlflow.log_metrics(metrics)
         mlflow.log_params(params)
+        mlflow.log_artifact("feature_importance.csv")
         mlflow.catboost.log_model(
             cb_model=cb_model,
             artifact_path='models',
