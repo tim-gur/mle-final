@@ -222,7 +222,7 @@ def evaluate():
     params = cb_model.get_params()
 
     importances = cb_model.get_feature_importance(prettified=True)
-    importances.to_csv("feature_importance.csv", index=False)
+    importances.to_csv("metrics/feature_importance.csv", index=False)
 
     with mlflow.start_run(run_name='cb_model_ver_5_fixed_metrics', experiment_id=experiment_id) as run:
         mlflow.log_metrics(metrics)

@@ -25,7 +25,7 @@ def fit():
         depth=6,
         loss_function='Logloss',
         verbose=100,
-        random_seed=0,
+        random_seed=42,
     )
 
     # тренируем модель

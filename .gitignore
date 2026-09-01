@@ -1,3 +1,8 @@
+# airflow
+airflow/logs/
+airflow/config/airflow.cfg
+airflow/plugins/
+
 *.csv
 *.pkl
 *.parquet

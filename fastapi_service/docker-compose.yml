@@ -1,0 +1,26 @@
+services:
+  recommendations_offline:
+    build: ./recommendations_offline
+    volumes:
+     - ../data/recommendations.parquet:/app/recommendations.parquet
+     - ../data/top100.parquet:/app/top_popular.parquet
+    ports:
+     - "8000:8000"
+  features_service:
+    build: ./features_service
+    volumes:
+    - ../data/similar.parquet:/app/similar.parquet
+    ports:
+     - "8010:8010"
+  events_service:
+    build: ./events_service
+    ports:
+     - "8020:8020"
+  recommendations_online:
+    build: ./recommendations_online
+    ports:
+     - "8030:8030"
+  recommendations:
+    build: ./recommendations
+    ports:
+     - "8040:8040"
