@@ -1,6 +1,15 @@
 from fastapi import FastAPI
 import pandas as pd
 import requests
+import os
+import logging
+from prometheus_fastapi_instrumentator import Instrumentator
+from prometheus_client import Counter
+
+recommendations_offline_url = os.environ.get('RECOMMENDATIONS_OFFLINE_URL')
+recommendations_online_url = os.environ.get('RECOMMENDATIONS_ONLINE_URL')
+
+logger = logging.getLogger('uvicorn.error')
 
 def dedup_ids(ids):
     """
@@ -11,10 +20,15 @@ def dedup_ids(ids):
 
     return ids
 
-recommendations_offline_url = 'http://recommendations_offline:8000'
-recommendations_online_url = 'http://recommendations_online:8030'
-
 app = FastAPI(title="recommendations")
+
+# prometheus
+instrumentator = Instrumentator()
+instrumentator.instrument(app).expose(app)
+
+recs_offline_errors = Counter('recs_offline_errors_total', 'Recommendations offline errors')
+recs_online_errors = Counter('recs_online_errors_total', 'Recommendations online errors')
+
 @app.post("/recommendations")
 async def recommendations(user_id: int, k: int = 100):
     """
@@ -24,11 +38,23 @@ async def recommendations(user_id: int, k: int = 100):
     headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
     params = {"user_id": user_id, 'k': k}
 
-    resp_offline = requests.post(recommendations_offline_url + "/recommendations_offline", headers=headers, params=params)
-    recs_offline = resp_offline.json()["recs"]
+    try:
+        resp_offline = requests.post(recommendations_offline_url + "/recommendations_offline", headers=headers, params=params)
+        recs_offline = resp_offline.json()["recs"]
+        resp_offline.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        logger.exception(f'recs_offline not received: {e}')
+        recs_offline_errors.inc()
+        recs_offline = []
 
-    resp_online = requests.post(recommendations_online_url + "/recommendations_online", headers=headers, params=params)
-    recs_online = resp_online.json()["recs"]
+    try:
+        resp_online = requests.post(recommendations_online_url + "/recommendations_online", headers=headers, params=params)
+        recs_online = resp_online.json()["recs"]
+        resp_online.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        logger.exception(f'recs_online not received: {e}')
+        recs_online_errors.inc()
+        recs_online = []
 
     recs_blended = []
 

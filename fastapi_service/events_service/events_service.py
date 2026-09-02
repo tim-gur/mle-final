@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 import requests
+from prometheus_fastapi_instrumentator import Instrumentator
 
 class EventStore:
 
@@ -14,7 +15,7 @@ class EventStore:
         """
 
         user_events = self.events.get(user_id, [])
-        self.events[user_id] = [item_id] + user_events[: self.max_events_per_user]
+        self.events[user_id] = [item_id] + user_events[:self.max_events_per_user]
 
     def get(self, user_id, k):
         """
@@ -28,6 +29,10 @@ events_store = EventStore()
 
 # создаём приложение FastAPI
 app = FastAPI(title="events")
+
+# prometheus
+instrumentator = Instrumentator()
+instrumentator.instrument(app).expose(app)
 
 @app.post("/put")
 async def put(user_id: int, item_id: int):

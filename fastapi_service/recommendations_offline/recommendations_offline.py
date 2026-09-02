@@ -1,10 +1,15 @@
 import logging
-
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 import pandas as pd
+from prometheus_fastapi_instrumentator import Instrumentator
+from prometheus_client import Counter
 
 logger = logging.getLogger("uvicorn.error")
+
+request_personal_count = Counter('request_personal_count', 'Count of personal requests')
+request_default_count = Counter('request_default_count', 'Count of default requests')
+recs_error = Counter('recs_not_found', 'Recs not found count')
 
 class Recommendations:
 
@@ -20,12 +25,15 @@ class Recommendations:
         """
         Загружает рекомендации из файла
         """
-
         logger.info(f"Loading recommendations, type: {type}")
-        self._recs[type] = pd.read_parquet(path, **kwargs)
-        if type == "personal":
-            self._recs[type] = self._recs[type].set_index("user_id")
-        logger.info(f"Loaded")
+        try:
+            self._recs[type] = pd.read_parquet(path, **kwargs)
+            if type == "personal":
+                self._recs[type] = self._recs[type].set_index("user_id")
+            logger.info(f"Loaded")
+        except Exception as e:
+            logger.exception(f'{type} recommendations file not loaded: {e}')
+            raise
 
     def get(self, user_id: int, k: int=100):
         """
@@ -34,19 +42,19 @@ class Recommendations:
         try:
             recs = self._recs["personal"].loc[user_id]
             recs = recs["item_id"].to_list()[:k]
-            self._stats["request_personal_count"] += 1
+            request_personal_count.inc()
         except KeyError:
             recs = self._recs["default"]
             recs = recs["item_id"].to_list()[:k]
-            self._stats["request_default_count"] += 1
-        except:
-            logger.error("No recommendations found")
+            request_default_count.inc()
+        except Exception as e:
+            logger.error(f"No recommendations found: {e}")
+            recs_error.inc()
             recs = []
-
+            
         return recs
 
     def stats(self):
-
         logger.info("Stats for recommendations")
         for name, value in self._stats.items():
             logger.info(f"{name:<30} {value} ")
@@ -64,7 +72,7 @@ async def lifespan(app: FastAPI):
     )
     rec_store.load(
         "default",
-        'top_popular.parquet',
+        'top100.parquet',
         columns=["item_id", "rank"],
     )
     yield
@@ -74,6 +82,10 @@ async def lifespan(app: FastAPI):
     
 # создаём приложение FastAPI
 app = FastAPI(title="recommendations_offline", lifespan=lifespan)
+
+# prometheus
+instrumentator = Instrumentator()
+instrumentator.instrument(app).expose(app)
 
 @app.post("/recommendations_offline")
 async def recommendations_offline(user_id: int, k: int = 100):

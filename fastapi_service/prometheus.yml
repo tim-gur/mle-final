@@ -1,0 +1,29 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'recommendations_offline'
+    static_configs:
+    - targets:
+      - recommendations_offline:8000
+  
+  - job_name: 'features_service'
+    static_configs:
+    - targets:
+      - features_service:8010
+  
+  - job_name: 'events_service'
+    static_configs:
+    - targets:
+      - events_service:8020
+  
+  - job_name: 'recommendations_online'
+    static_configs:
+    - targets:
+      - recommendations_online:8030
+  
+  - job_name: 'recommendations'
+    static_configs:
+    - targets:
+      - recommendations:8040

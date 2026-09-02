@@ -1,26 +1,65 @@
+x-common-env: &common-env
+  RECOMMENDATIONS_OFFLINE_URL: 'http://recommendations_offline:8000'
+  FEATURES_STORE_URL: 'http://features_service:8010'
+  EVENTS_STORE_URL: 'http://events_service:8020'
+  RECOMMENDATIONS_ONLINE_URL: 'http://recommendations_online:8030'
+
 services:
   recommendations_offline:
     build: ./recommendations_offline
+    environment:
+      <<: *common-env
     volumes:
      - ../data/recommendations.parquet:/app/recommendations.parquet
-     - ../data/top100.parquet:/app/top_popular.parquet
+     - ../data/top100.parquet:/app/top100.parquet
     ports:
      - "8000:8000"
+
   features_service:
     build: ./features_service
+    environment:
+      <<: *common-env
     volumes:
     - ../data/similar.parquet:/app/similar.parquet
     ports:
      - "8010:8010"
+
   events_service:
     build: ./events_service
+    environment:
+      <<: *common-env
     ports:
      - "8020:8020"
+
   recommendations_online:
     build: ./recommendations_online
+    environment:
+      <<: *common-env
     ports:
      - "8030:8030"
+
   recommendations:
     build: ./recommendations
+    environment:
+      <<: *common-env
     ports:
      - "8040:8040"
+
+  prometheus:
+    image: prom/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    ports:
+      - 9090:9090
+    volumes:
+      - "./prometheus.yml:/etc/prometheus/prometheus.yml"
+  
+  grafana:
+    image: grafana/grafana
+    env_file:
+      - ./.env
+    ports:
+      - 3000:3000
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASS}
