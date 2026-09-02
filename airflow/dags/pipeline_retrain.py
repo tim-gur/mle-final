@@ -19,10 +19,10 @@ def pipeline_retrain():
     import json
     import mlflow
 
-    DATA_DIR = os.environ.get("DATA_DIR", "data")
-    DOWNLOADS_DIR = os.environ.get("DOWNLOADS_DIR", "downloads")
-    MODELS_DIR = os.environ.get("MODELS_DIR", "data")
-    METRICS_DIR = os.environ.get("METRICS_DIR", "data")
+    DATA_DIR = os.environ.get("DATA_DIR")
+    DOWNLOADS_DIR = os.environ.get("DOWNLOADS_DIR")
+    MODELS_DIR = os.environ.get("MODELS_DIR")
+    METRICS_DIR = os.environ.get("METRICS_DIR")
 
     @task()
     def process_data_retrain():
@@ -61,6 +61,7 @@ def pipeline_retrain():
         #top100
         events_addtocart = events[events['event'] == 'addtocart']
         top100 = events_addtocart.groupby('item_id').size().reset_index(name='count').sort_values(['count'], ascending=False)[:100]
+        top100['rank'] = top100['count'].rank(method='first', ascending=False).astype(int)
 
         top100.to_parquet(os.path.join(DATA_DIR, 'top100.parquet'), index=False)
 

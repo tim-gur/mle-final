@@ -8,3 +8,4 @@ scikit-learn==1.7.2
 implicit==0.7.3
 catboost==1.2.10
 apache-airflow==3.3.1
+prometheus-client==0.26.0
