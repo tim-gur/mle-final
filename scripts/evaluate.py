@@ -170,7 +170,7 @@ def evaluate():
     novelty_5_cb = (1-final_recommendations.query("rank <= 5").groupby("user_id")["played"].mean())
 
     # coverage
-    items = pd.read_parquet('item_categories.parquet')
+    items = pd.read_parquet('data/item_categories.parquet')
 
     n_init = items['item_id'].nunique()
     n_als = final_recommendations['item_id'].nunique()
@@ -224,10 +224,10 @@ def evaluate():
     importances = cb_model.get_feature_importance(prettified=True)
     importances.to_csv("metrics/feature_importance.csv", index=False)
 
-    with mlflow.start_run(run_name='cb_model_ver_5_fixed_metrics', experiment_id=experiment_id) as run:
+    with mlflow.start_run(run_name='cb_model_ver_6_fixed_leak', experiment_id=experiment_id) as run:
         mlflow.log_metrics(metrics)
         mlflow.log_params(params)
-        mlflow.log_artifact("feature_importance.csv")
+        mlflow.log_artifact("metrics/feature_importance.csv")
         mlflow.catboost.log_model(
             cb_model=cb_model,
             artifact_path='models',

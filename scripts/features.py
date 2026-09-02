@@ -2,6 +2,8 @@ import pandas as pd
 
 def features(candidates_for_train, candidates_to_rank):
     items = pd.read_parquet('data/item_categories.parquet')
+    items = items.fillna(0)
+
     events_train = pd.read_parquet('data/events_train.parquet')
     events_test = pd.read_parquet('data/events_test.parquet')
     category_tree = pd.read_csv('downloads/category_tree.csv')
@@ -10,7 +12,7 @@ def features(candidates_for_train, candidates_to_rank):
     category_tree_dict = dict(zip(category_tree['categoryid'], category_tree['parentid']))
 
     def get_root_category(cat_id, tree_dict):
-        while cat_id in tree_dict:
+        while cat_id in tree_dict and not pd.isna(tree_dict[cat_id]):
             cat_id = tree_dict[cat_id]
         return int(cat_id)
 
@@ -56,13 +58,13 @@ def features(candidates_for_train, candidates_to_rank):
 
     candidates_to_rank = (
         candidates_to_rank
-        .merge(user_item_views_test, on=['user_id', 'item_id'], how='left')
-        .merge(user_total_views_test, on='user_id', how='left')
-        .merge(user_total_addtocart_test, on='user_id', how='left')
-        .merge(item_total_views_test, on='item_id', how='left')
-        .merge(item_total_addtocart_test, on='item_id', how='left')
-        .merge(user_total_events_test, on='user_id', how='left')
-        .merge(item_total_events_test, on='item_id', how='left')
+        .merge(user_item_views_train, on=['user_id', 'item_id'], how='left')
+        .merge(user_total_views_train, on='user_id', how='left')
+        .merge(user_total_addtocart_train, on='user_id', how='left')
+        .merge(item_total_views_train, on='item_id', how='left')
+        .merge(item_total_addtocart_train, on='item_id', how='left')
+        .merge(user_total_events_train, on='user_id', how='left')
+        .merge(item_total_events_train, on='item_id', how='left')
         .merge(items, on='item_id', how='left')
     )
 

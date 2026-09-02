@@ -273,13 +273,13 @@ def pipeline_retrain():
 
         candidates_to_rank = (
             candidates_to_rank
-            .merge(user_item_views_test, on=['user_id', 'item_id'], how='left')
-            .merge(user_total_views_test, on='user_id', how='left')
-            .merge(user_total_addtocart_test, on='user_id', how='left')
-            .merge(item_total_views_test, on='item_id', how='left')
-            .merge(item_total_addtocart_test, on='item_id', how='left')
-            .merge(user_total_events_test, on='user_id', how='left')
-            .merge(item_total_events_test, on='item_id', how='left')
+            .merge(user_item_views_train, on=['user_id', 'item_id'], how='left')
+            .merge(user_total_views_train, on='user_id', how='left')
+            .merge(user_total_addtocart_train, on='user_id', how='left')
+            .merge(item_total_views_train, on='item_id', how='left')
+            .merge(item_total_addtocart_train, on='item_id', how='left')
+            .merge(user_total_events_train, on='user_id', how='left')
+            .merge(item_total_events_train, on='item_id', how='left')
             .merge(items, on='item_id', how='left')
         )
 
